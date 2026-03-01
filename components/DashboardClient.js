@@ -252,10 +252,11 @@ export default function DashboardClient() {
     const prevStrike = [...strikeIds];
     const prevHeatmap = { ...heatmap };
 
-    // 1. Update question
-    setQuestions((prev) =>
-      prev.map((item) => (item.id === q.id ? { ...item, status } : item))
+    // 1. Update question in state
+    const updatedQuestions = questions.map((item) =>
+      item.id === q.id ? { ...item, status } : item
     );
+    setQuestions(updatedQuestions);
 
     // 2. Update heatmap & strike if completed
     if (status === "Completed") {
@@ -276,9 +277,13 @@ export default function DashboardClient() {
 
       // Sync strictly returned data if needed
       const data = await res.json();
-      setQuestions((prev) =>
-        prev.map((item) => (item.id === data.question.id ? data.question : item))
+      const finalQuestions = questions.map((item) =>
+        item.id === data.question.id ? data.question : item
       );
+      setQuestions(finalQuestions);
+
+      // ✅ Also update localStorage cache so status persists across page reloads
+      localStorage.setItem("lmt_cache_questions", JSON.stringify(finalQuestions));
     } catch (err) {
       // Revert Optimistic Update
       alert("Network Error: Reverting status.");
@@ -287,6 +292,7 @@ export default function DashboardClient() {
       setHeatmap(prevHeatmap);
     }
   }
+
 
   async function deleteQuestion(q) {
     setBusyId(q.id);

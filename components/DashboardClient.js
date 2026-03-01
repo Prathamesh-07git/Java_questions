@@ -244,52 +244,66 @@ export default function DashboardClient() {
     });
   }
 
-  async function updateStatus(q, status) {
-    if (q.status === status) return;
+  async function updateStatus(q, newStatus) {
+    if (q.status === newStatus) return;
 
-    // Optimistically update UI immediately (0ms delay)
     const prevQuestions = [...questions];
     const prevStrike = [...strikeIds];
     const prevHeatmap = { ...heatmap };
 
-    // 1. Update question in state
     const updatedQuestions = questions.map((item) =>
-      item.id === q.id ? { ...item, status } : item
+      item.id === q.id ? { ...item, status: newStatus } : item
     );
     setQuestions(updatedQuestions);
 
-    // 2. Update heatmap & strike if completed
-    if (status === "Completed") {
+    if (newStatus === "Completed") {
       setStrikeIds((prev) => (prev.includes(q.question_id) ? prev : [q.question_id, ...prev]));
       const today = new Date().toISOString().slice(0, 10);
       setHeatmap((prev) => ({ ...prev, [today]: (prev[today] || 0) + 1 }));
     }
 
-    // Process network request silently in background
     try {
       const res = await fetch(`/api/questions/${q.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: q.title, status })
+        body: JSON.stringify({ title: q.title, status: newStatus })
       });
-
       if (!res.ok) throw new Error("Update failed");
-
-      // Sync strictly returned data if needed
       const data = await res.json();
       const finalQuestions = questions.map((item) =>
         item.id === data.question.id ? data.question : item
       );
       setQuestions(finalQuestions);
-
-      // ✅ Also update localStorage cache so status persists across page reloads
       localStorage.setItem("lmt_cache_questions", JSON.stringify(finalQuestions));
     } catch (err) {
-      // Revert Optimistic Update
       alert("Network Error: Reverting status.");
       setQuestions(prevQuestions);
       setStrikeIds(prevStrike);
       setHeatmap(prevHeatmap);
+    }
+  }
+
+  async function toggleHard(q) {
+    const newHard = !q.is_hard;
+    const updated = questions.map((item) =>
+      item.id === q.id ? { ...item, is_hard: newHard } : item
+    );
+    setQuestions(updated);
+    try {
+      const res = await fetch(`/api/questions/${q.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_hard: newHard })
+      });
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      const final = questions.map((item) =>
+        item.id === data.question.id ? data.question : item
+      );
+      setQuestions(final);
+      localStorage.setItem("lmt_cache_questions", JSON.stringify(final));
+    } catch {
+      setQuestions(questions); // revert
     }
   }
 
@@ -324,6 +338,7 @@ export default function DashboardClient() {
     if (filters.phase) list = list.filter((q) => String(q.phase) === filters.phase);
     if (filters.level) list = list.filter((q) => String(q.level) === filters.level);
     if (filters.status) list = list.filter((q) => q.status === filters.status);
+    if (filters.hardOnly) list = list.filter((q) => q.is_hard);
     if (filters.search) {
       list = list.filter((q) => q.question_id.toUpperCase().includes(filters.search.toUpperCase()));
     }
@@ -342,12 +357,19 @@ export default function DashboardClient() {
       });
     } else if (filters.sort === "status") {
       list.sort((a, b) => (statusOrder[a.status] || 9) - (statusOrder[b.status] || 9));
+    } else if (filters.sort === "date-new") {
+      list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    } else if (filters.sort === "date-old") {
+      list.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    } else if (filters.sort === "updated") {
+      list.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
     }
 
     return list;
   }, [questions, filters]);
 
-  const hardList = useMemo(() => questions.filter((q) => q.status === "Hard"), [questions]);
+
+  const hardList = useMemo(() => questions.filter((q) => q.is_hard), [questions]);
   const todayList = useMemo(() => questions.filter((q) => q.status === "Today"), [questions]);
 
   const stats = useMemo(() => {
@@ -489,7 +511,6 @@ export default function DashboardClient() {
               <option value="Pending">Pending</option>
               <option value="Completed">Completed</option>
               <option value="Easy">Easy</option>
-              <option value="Hard">Hard</option>
               <option value="Today">Today</option>
             </select>
             <select
@@ -498,8 +519,20 @@ export default function DashboardClient() {
             >
               <option value="id-asc">ID Asc</option>
               <option value="id-desc">ID Desc</option>
-              <option value="status">Status</option>
+              <option value="status">By Status</option>
+              <option value="date-new">Newest First</option>
+              <option value="date-old">Oldest First</option>
+              <option value="updated">Recently Updated</option>
             </select>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px', color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+              <input
+                type="checkbox"
+                checked={!!filters.hardOnly}
+                onChange={(e) => setFilters({ ...filters, hardOnly: e.target.checked })}
+                style={{ accentColor: '#f87171', width: '14px', height: '14px' }}
+              />
+              Hard Only
+            </label>
           </div>
         </div>
 
@@ -552,6 +585,7 @@ export default function DashboardClient() {
               <div className="cell" data-label="Level">L{q.level}</div>
               <div className="cell" data-label="Status">
                 <span className={`status-pill ${q.status}`}>{q.status}</span>
+                {q.is_hard && <span className="status-pill Hard" style={{ marginLeft: '4px' }}>HARD</span>}
               </div>
               <div className="cell actions" data-label="Actions">
                 <button className="btn tiny action-done" disabled={busyId === q.id} onClick={() => updateStatus(q, "Completed")}>
@@ -560,8 +594,14 @@ export default function DashboardClient() {
                 <button className="btn tiny action-easy" disabled={busyId === q.id} onClick={() => updateStatus(q, "Easy")}>
                   Easy
                 </button>
-                <button className="btn tiny action-hard" disabled={busyId === q.id} onClick={() => updateStatus(q, "Hard")}>
-                  Hard
+                <button
+                  className={`btn tiny ${q.is_hard ? "action-hard" : "action-hard-off"}`}
+                  style={{ opacity: q.is_hard ? 1 : 0.5 }}
+                  disabled={busyId === q.id}
+                  onClick={() => toggleHard(q)}
+                  title={q.is_hard ? "Remove from Solve Again" : "Mark as Hard (Solve Again)"}
+                >
+                  {q.is_hard ? "Hard ✓" : "Hard"}
                 </button>
                 <button className="btn tiny action-today" disabled={busyId === q.id} onClick={() => updateStatus(q, "Today")}>
                   Today

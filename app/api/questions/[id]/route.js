@@ -10,8 +10,9 @@ export async function PATCH(req, { params }) {
 
   const { id } = params;
   try {
-    const { title, status } = await req.json();
-    if (!title && !status) {
+    const { title, status, is_hard } = await req.json();
+
+    if (!title && !status && is_hard === undefined) {
       return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
     }
 
@@ -27,12 +28,16 @@ export async function PATCH(req, { params }) {
       fields.push(`status = $${idx++}`);
       values.push(status);
     }
+    if (is_hard !== undefined) {
+      fields.push(`is_hard = $${idx++}`);
+      values.push(is_hard);
+    }
 
     fields.push(`updated_at = NOW()`);
     values.push(user.id);
     values.push(id);
 
-    const sql = `UPDATE questions SET ${fields.join(", ")} WHERE user_id = $${idx++} AND id = $${idx++} RETURNING id, question_id, title, phase, level, status, created_at, updated_at`;
+    const sql = `UPDATE questions SET ${fields.join(", ")} WHERE user_id = $${idx++} AND id = $${idx++} RETURNING id, question_id, title, phase, level, status, is_hard, created_at, updated_at`;
     const result = await query(sql, values);
 
     if (result.rowCount === 0) {
@@ -50,6 +55,7 @@ export async function PATCH(req, { params }) {
 
     return NextResponse.json({ question: updated });
   } catch (err) {
+    console.error("Update error:", err);
     return NextResponse.json({ error: "Update failed" }, { status: 500 });
   }
 }

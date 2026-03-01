@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { AUTH_COOKIE } from "./lib/auth";
+
+const AUTH_COOKIE = "lmt_token";
 
 export function middleware(req) {
   const { pathname } = req.nextUrl;

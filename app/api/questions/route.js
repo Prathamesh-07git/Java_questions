@@ -9,7 +9,7 @@ export async function GET() {
   }
 
   const result = await query(
-    "SELECT id, question_id, title, phase, level, status, created_at, updated_at FROM questions WHERE user_id = $1 ORDER BY created_at DESC",
+    "SELECT id, question_id, title, phase, level, status, is_hard, created_at, updated_at FROM questions WHERE user_id = $1 ORDER BY created_at DESC",
     [user.id]
   );
 
@@ -53,7 +53,7 @@ export async function POST(req) {
       const questionId = `P${phase}-L${level}-Q${String(nextNumber).padStart(2, "0")}`;
 
       const insertRes = await client.query(
-        "INSERT INTO questions (user_id, question_id, title, phase, level, status) VALUES ($1, $2, $3, $4, $5, 'Pending') RETURNING id, question_id, title, phase, level, status, created_at, updated_at",
+        "INSERT INTO questions (user_id, question_id, title, phase, level, status) VALUES ($1, $2, $3, $4, $5, 'Pending') RETURNING id, question_id, title, phase, level, status, is_hard, created_at, updated_at",
         [user.id, questionId, title, phase, level]
       );
 

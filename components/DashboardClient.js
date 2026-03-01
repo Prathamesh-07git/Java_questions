@@ -53,6 +53,23 @@ export default function DashboardClient() {
   const [busyId, setBusyId] = useState(null);
   const [now, setNow] = useState(null);
   const [mounted, setMounted] = useState(false);
+  const [countdown, setCountdown] = useState("");
+
+  useEffect(() => {
+    function calcCountdown() {
+      const n = new Date();
+      const midnight = new Date(n);
+      midnight.setHours(24, 0, 0, 0);
+      const diff = midnight - n;
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setCountdown(`${h}h ${m}m ${s}s`);
+    }
+    calcCountdown();
+    const t = setInterval(calcCountdown, 1000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     const stored = localStorage.getItem("lmt_theme");
@@ -374,13 +391,13 @@ export default function DashboardClient() {
 
   const stats = useMemo(() => {
     const total = questions.length;
-    const completed = questions.filter((q) => q.status !== "Pending").length;
+    // Only count questions truly solved: Completed or Easy
+    const completed = questions.filter((q) => q.status === "Completed" || q.status === "Easy").length;
     const easy = questions.filter((q) => q.status === "Easy").length;
-    const hard = questions.filter((q) => q.status === "Hard").length;
     const todayQ = questions.filter((q) => q.status === "Today").length;
     const pending = questions.filter((q) => q.status === "Pending").length;
     const percent = total ? Math.round((completed / total) * 100) : 0;
-    return { total, completed, easy, hard, today: todayQ, pending, percent };
+    return { total, completed, easy, today: todayQ, pending, percent };
   }, [questions]);
 
   const listForTab = tab === "hard" ? hardList : tab === "today" ? todayList : filtered;
@@ -561,9 +578,38 @@ export default function DashboardClient() {
         </div>
 
         {loading ? <div className="empty">Loading...</div> : null}
+
+        {/* Countdown timer banner - only shown in To Solve Today tab */}
+        {tab === "today" && todayList.length > 0 && mounted && (
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            padding: "12px 16px",
+            marginBottom: "8px",
+            borderRadius: "10px",
+            background: parseInt(countdown) < 3 ? "rgba(239,68,68,0.12)" : "rgba(251,146,60,0.10)",
+            border: `1px solid ${parseInt(countdown) < 3 ? "rgba(239,68,68,0.4)" : "rgba(251,146,60,0.35)"}`,
+            color: parseInt(countdown) < 3 ? "#f87171" : "#fb923c",
+          }}>
+            <span style={{ fontSize: "20px" }}>⏰</span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: "14px" }}>
+                ⚡ {todayList.length} question{todayList.length > 1 ? "s" : ""} to solve today!
+              </div>
+              <div style={{ fontSize: "12px", opacity: 0.85 }}>
+                Time remaining until midnight: <strong>{countdown}</strong> — Don't forget to complete them!
+              </div>
+            </div>
+          </div>
+        )}
+
         {!loading && listForTab.length === 0 ? (
-          <div className="empty">No questions found.</div>
+          <div className="empty">
+            {tab === "today" ? "🎉 No questions pending for today!" : "No questions found."}
+          </div>
         ) : null}
+
 
         <div className="table">
           <div className="table-head">

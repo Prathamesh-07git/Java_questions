@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { query } from "../../../../lib/db";
-import { signToken, setAuthCookie } from "../../../../lib/auth";
+import { signToken, setAuthCookieOnResponse } from "../../../../lib/auth";
 
 export async function POST(req) {
   try {
@@ -24,10 +24,10 @@ export async function POST(req) {
     }
 
     const token = signToken({ id: user.id, email: user.email });
-    setAuthCookie(token);
-
-    return NextResponse.json({ user: { id: user.id, email: user.email } });
+    const response = NextResponse.json({ user: { id: user.id, email: user.email } });
+    return setAuthCookieOnResponse(response, token);
   } catch (err) {
+    console.error("Login error:", err);
     return NextResponse.json({ error: "Login failed" }, { status: 500 });
   }
 }

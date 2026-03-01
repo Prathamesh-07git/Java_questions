@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { getClient } from "../../../../lib/db";
-import { signToken, setAuthCookie } from "../../../../lib/auth";
-import { seedQuestionsForUser } from "../../../../lib/seed";
+import { signToken, setAuthCookieOnResponse } from "../../../../lib/auth";
 
 export async function POST(req) {
   let client;
@@ -30,19 +29,16 @@ export async function POST(req) {
     );
 
     const user = result.rows[0];
-    // Disabled auto-seeding of default demo questions
-    // await seedQuestionsForUser(client, user.id);
-
     await client.query("COMMIT");
 
     const token = signToken({ id: user.id, email: user.email });
-    setAuthCookie(token);
-
-    return NextResponse.json({ user });
+    const response = NextResponse.json({ user });
+    return setAuthCookieOnResponse(response, token);
   } catch (err) {
     if (client) {
       await client.query("ROLLBACK");
     }
+    console.error("Register error:", err);
     return NextResponse.json({ error: "Registration failed" }, { status: 500 });
   } finally {
     if (client) client.release();

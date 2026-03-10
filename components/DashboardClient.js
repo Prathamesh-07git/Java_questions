@@ -426,23 +426,37 @@ export default function DashboardClient() {
     const firstDay = new Date(year, month - 1, 1);
     const lastDay = new Date(year, month, 0);
 
-    const days = [];
-    // Pad empty slots before first day (Sunday = 0)
-    for (let i = 0; i < firstDay.getDay(); i++) {
-      days.push(null);
-    }
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const [ty, tm] = todayStr.split("-").map(Number);
+    const isCurrentMonth = ty === year && tm === month;
+    const todayDayNum = isCurrentMonth ? parseInt(todayStr.slice(8)) : -1;
 
-    // Fill exact dates
+    const days = [];
+    for (let i = 0; i < firstDay.getDay(); i++) days.push(null);
+
     for (let d = 1; d <= lastDay.getDate(); d++) {
       const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-      days.push({
-        date: dateStr,
-        dayNumber: d,
-        count: heatmap[dateStr] || 0
-      });
+      const count = heatmap[dateStr] || 0;
+      const isToday = dateStr === todayStr;
+      // A day is "missed" if it's in the past (not today, not future) and has 0 questions
+      const isFuture = dateStr > todayStr;
+      const isMissed = !isFuture && !isToday && count === 0;
+      days.push({ date: dateStr, dayNumber: d, count, isToday, isMissed, isFuture });
     }
     return days;
   }, [heatmap, selectedMonth, mounted]);
+
+  // Phase-by-phase stats for charts
+  const phaseStats = useMemo(() => {
+    return [1, 2, 3, 4, 5, 6].map((ph) => {
+      const phQ = questions.filter((q) => q.phase === ph);
+      const solved = phQ.filter((q) => q.status === "Completed" || q.status === "Easy").length;
+      const total = phQ.length;
+      const pct = total ? Math.round((solved / total) * 100) : 0;
+      return { phase: ph, label: phases[ph], solved, total, pct };
+    });
+  }, [questions]);
+
 
   return (
     <div className="app-shell">
@@ -699,11 +713,31 @@ export default function DashboardClient() {
               <div className="calendar-grid">
                 {calendarDays.map((d, i) => {
                   if (!d) return <div key={`empty-${i}`} className="cal-day empty" />;
+
+                  // Build inline styles for today ring and missed color
+                  let extraStyle = {};
+                  let extraClass = `cal-day level-${Math.min(4, d.count)}`;
+
+                  if (d.isToday) {
+                    extraStyle = {
+                      border: "2px solid #22d3ee",
+                      boxShadow: "0 0 0 3px rgba(34,211,238,0.25), inset 0 0 12px rgba(34,211,238,0.08)",
+                      fontWeight: 700,
+                    };
+                  } else if (d.isMissed) {
+                    extraStyle = {
+                      background: "rgba(239,68,68,0.13)",
+                      border: "1px solid rgba(239,68,68,0.25)",
+                    };
+                    extraClass = "cal-day missed";
+                  }
+
                   return (
                     <div
                       key={d.date}
-                      className={`cal-day level-${Math.min(4, d.count)}`}
-                      title={`${d.date} • ${d.count} questions`}
+                      className={extraClass}
+                      style={extraStyle}
+                      title={d.isToday ? `Today • ${d.count} solved` : d.isMissed ? `${d.date} • Missed (0 solved)` : `${d.date} • ${d.count} questions`}
                     >
                       {d.dayNumber}
                     </div>
@@ -719,6 +753,14 @@ export default function DashboardClient() {
               <span className="dot level-3" />
               <span className="dot level-4" />
               <span>More</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '5px', marginLeft: '12px' }}>
+                <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: 'rgba(239,68,68,0.35)', border: '1px solid rgba(239,68,68,0.5)', display: 'inline-block' }} />
+                <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Missed</span>
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '5px', marginLeft: '4px' }}>
+                <span style={{ width: '12px', height: '12px', borderRadius: '3px', border: '2px solid #22d3ee', display: 'inline-block' }} />
+                <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Today</span>
+              </span>
             </div>
           </div>
         </div>
@@ -750,6 +792,30 @@ export default function DashboardClient() {
           <div className="dash-card">
             <div className="dash-label">Today's Strike</div>
             <div className="dash-value">{strikeIds.length}</div>
+          </div>
+        </div>
+
+        {/* Phase Progress Bar Charts */}
+        <div style={{ marginTop: '24px' }}>
+          <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)', marginBottom: '14px', letterSpacing: '-0.3px' }}>Phase Progress</h3>
+          <div style={{ display: 'grid', gap: '10px' }}>
+            {phaseStats.map((ps) => (
+              <div key={ps.phase} style={{ background: 'var(--card)', borderRadius: '10px', padding: '12px 16px', border: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '7px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>Phase {ps.phase} — {ps.label}</span>
+                  <span style={{ fontSize: '12px', color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' }}>{ps.solved}/{ps.total} ({ps.pct}%)</span>
+                </div>
+                <div style={{ height: '7px', background: 'var(--bg)', borderRadius: '99px', overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%',
+                    width: `${ps.pct}%`,
+                    background: ps.pct === 100 ? 'linear-gradient(90deg,#22d3ee,#6366f1)' : ps.pct > 50 ? 'linear-gradient(90deg,#6366f1,#a855f7)' : 'linear-gradient(90deg,#f97316,#f59e0b)',
+                    borderRadius: '99px',
+                    transition: 'width 0.6s ease'
+                  }} />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
         <div className="strike-panel">

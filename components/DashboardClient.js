@@ -269,7 +269,9 @@ export default function DashboardClient() {
     const prevHeatmap = { ...heatmap };
 
     const updatedQuestions = questions.map((item) =>
-      item.id === q.id ? { ...item, status: newStatus } : item
+      item.id === q.id
+        ? { ...item, status: newStatus, solve_count: newStatus === "Completed" ? (item.solve_count || 0) + 1 : item.solve_count }
+        : item
     );
     setQuestions(updatedQuestions);
 
@@ -638,7 +640,22 @@ export default function DashboardClient() {
             <div className="table-row" key={q.id}>
               <div className="cell mono" data-label="ID">{q.question_id}</div>
               <div className="cell title" data-label="Title">
-                <div className="title-text">{q.title}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <div className="title-text">{q.title}</div>
+                  {q.solve_count > 0 && (
+                    <span title={`Solved ${q.solve_count} time${q.solve_count > 1 ? 's' : ''}`} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '3px',
+                      fontSize: '11px', fontWeight: 700,
+                      background: q.solve_count >= 3 ? 'rgba(251,146,60,0.18)' : 'rgba(99,102,241,0.15)',
+                      color: q.solve_count >= 3 ? '#fb923c' : '#818cf8',
+                      border: `1px solid ${q.solve_count >= 3 ? 'rgba(251,146,60,0.4)' : 'rgba(99,102,241,0.35)'}`,
+                      borderRadius: '99px', padding: '2px 8px',
+                      lineHeight: '1.4'
+                    }}>
+                      {q.solve_count >= 3 ? '🔥' : '✓'} ×{q.solve_count}
+                    </span>
+                  )}
+                </div>
                 <div className="subtitle">{phases[q.phase]} · L{q.level}</div>
               </div>
               <div className="cell" data-label="Phase">Phase {q.phase}</div>
@@ -818,6 +835,38 @@ export default function DashboardClient() {
             ))}
           </div>
         </div>
+
+        {/* Most Practiced Questions */}
+        {questions.some((q) => q.solve_count > 0) && (
+          <div style={{ marginTop: '24px' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)', marginBottom: '14px', letterSpacing: '-0.3px' }}>🔥 Most Practiced Questions</h3>
+            <div style={{ display: 'grid', gap: '8px' }}>
+              {[...questions]
+                .filter((q) => q.solve_count > 0)
+                .sort((a, b) => (b.solve_count || 0) - (a.solve_count || 0))
+                .slice(0, 5)
+                .map((q, rank) => {
+                  const maxCount = Math.max(...questions.map((x) => x.solve_count || 0));
+                  return (
+                    <div key={q.id} style={{ background: 'var(--card)', borderRadius: '10px', padding: '10px 14px', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--muted)', width: '18px', flexShrink: 0 }}>#{rank + 1}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{q.title}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>{q.question_id} · {phases[q.phase]} · L{q.level}</div>
+                        <div style={{ marginTop: '5px', height: '4px', background: 'var(--bg)', borderRadius: '99px', overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${Math.round(((q.solve_count || 0) / maxCount) * 100)}%`, background: 'linear-gradient(90deg,#f97316,#f59e0b)', borderRadius: '99px', transition: 'width 0.6s ease' }} />
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: q.solve_count >= 3 ? '#fb923c' : '#818cf8', flexShrink: 0 }}>
+                        {q.solve_count >= 3 ? '🔥' : '✓'} ×{q.solve_count}
+                      </span>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        )}
+
         <div className="strike-panel">
           <div className="strike-header">
             <h3>Today's Strike</h3>

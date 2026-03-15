@@ -9,7 +9,7 @@ export async function GET() {
   }
 
   const result = await query(
-    "SELECT id, question_id, title, phase, level, status, is_hard, created_at, updated_at FROM questions WHERE user_id = $1 ORDER BY created_at DESC",
+    "SELECT id, question_id, title, phase, level, status, is_hard, solve_count, created_at, updated_at FROM questions WHERE user_id = $1 ORDER BY created_at DESC",
     [user.id]
   );
 

@@ -33,11 +33,16 @@ export async function PATCH(req, { params }) {
       values.push(is_hard);
     }
 
+    // If marking as Completed, also increment solve_count
+    if (status === "Completed") {
+      fields.push(`solve_count = solve_count + 1`);
+    }
+
     fields.push(`updated_at = NOW()`);
     values.push(user.id);
     values.push(id);
 
-    const sql = `UPDATE questions SET ${fields.join(", ")} WHERE user_id = $${idx++} AND id = $${idx++} RETURNING id, question_id, title, phase, level, status, is_hard, created_at, updated_at`;
+    const sql = `UPDATE questions SET ${fields.join(", ")} WHERE user_id = $${idx++} AND id = $${idx++} RETURNING id, question_id, title, phase, level, status, is_hard, solve_count, created_at, updated_at`;
     const result = await query(sql, values);
 
     if (result.rowCount === 0) {

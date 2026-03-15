@@ -10,9 +10,9 @@ export async function PATCH(req, { params }) {
 
   const { id } = params;
   try {
-    const { title, status, is_hard } = await req.json();
+    const { title, status, is_hard, recount } = await req.json();
 
-    if (!title && !status && is_hard === undefined) {
+    if (!title && !status && is_hard === undefined && !recount) {
       return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
     }
 
@@ -33,8 +33,8 @@ export async function PATCH(req, { params }) {
       values.push(is_hard);
     }
 
-    // If marking as Completed, also increment solve_count
-    if (status === "Completed") {
+    // If marking as Completed (new OR re-solve), also increment solve_count
+    if (status === "Completed" || recount) {
       fields.push(`solve_count = solve_count + 1`);
     }
 

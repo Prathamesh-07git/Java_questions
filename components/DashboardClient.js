@@ -262,12 +262,16 @@ export default function DashboardClient() {
   }
 
   async function updateStatus(q, newStatus) {
-    if (q.status === newStatus) return;
+    // If same status AND not Completed → skip (nothing to do)
+    // If same status AND Completed → still proceed to increment solve_count
+    const isRecount = q.status === newStatus && newStatus === "Completed";
+    if (q.status === newStatus && !isRecount) return;
 
     const prevQuestions = [...questions];
     const prevStrike = [...strikeIds];
     const prevHeatmap = { ...heatmap };
 
+    // Optimistically update UI: increment solve_count instantly on Done click
     const updatedQuestions = questions.map((item) =>
       item.id === q.id
         ? { ...item, status: newStatus, solve_count: newStatus === "Completed" ? (item.solve_count || 0) + 1 : item.solve_count }
@@ -282,10 +286,13 @@ export default function DashboardClient() {
     }
 
     try {
+      const body = isRecount
+        ? { title: q.title, recount: true }          // only increment count, don't change status
+        : { title: q.title, status: newStatus };       // normal status update
       const res = await fetch(`/api/questions/${q.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: q.title, status: newStatus })
+        body: JSON.stringify(body)
       });
       if (!res.ok) throw new Error("Update failed");
       const data = await res.json();

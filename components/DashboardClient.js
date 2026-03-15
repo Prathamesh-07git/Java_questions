@@ -76,7 +76,9 @@ export default function DashboardClient() {
     const isDark = stored ? stored === "dark" : true;
     setDark(isDark);
     document.documentElement.classList.toggle("dark", isDark);
+    document.documentElement.classList.toggle("light", !isDark);
     document.body.classList.toggle("dark", isDark);
+    document.body.classList.toggle("light", !isDark);
     setMounted(true);
   }, []);
 
@@ -355,7 +357,9 @@ export default function DashboardClient() {
     const next = !dark;
     setDark(next);
     document.documentElement.classList.toggle("dark", next);
+    document.documentElement.classList.toggle("light", !next);
     document.body.classList.toggle("dark", next);
+    document.body.classList.toggle("light", !next);
     localStorage.setItem("lmt_theme", next ? "dark" : "light");
   }
 
